@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Analyse AI avec Firestore</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Manrope', sans-serif;
+      background: linear-gradient(180deg,#071028 0%, #041022 100%);
+      color: #e6eef8;
+      min-height: 100vh;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+    }
+    h1 {
+      margin-top: 40px;
+      font-size: 2rem;
+      font-weight: 800;
+      background: linear-gradient(90deg,#7c3aed,#06b6d4);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-fill-color: transparent;
+    }
+    .ai-card {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-radius: 18px;
+      box-shadow: 0 8px 32px rgba(2,6,23,0.45);
+      padding: 32px 28px;
+      margin-top: 32px;
+      width: 100%;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+    input[type="text"] {
+      padding: 12px 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      color: #e6eef8;
+      font-size: 1rem;
+      margin-bottom: 10px;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 12px 24px;
+      border-radius: 999px;
+      border: none;
+      background: linear-gradient(90deg,#7c3aed,#06b6d4);
+      color: #021028;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: opacity .18s;
+    }
+    button:active { opacity: .85; }
+    button:disabled {
+      opacity: .6;
+      cursor: not-allowed;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    #answer {
+      margin-top: 18px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 14px;
+      padding: 18px;
+      min-height: 48px;
+      color: #e6eef8;
+      font-size: 1.08rem;
+      word-break: break-word;
+      box-shadow: 0 2px 12px rgba(2,6,23,0.12);
+    }
+  </style>
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.0/firebase-functions-compat.js"></script>
+</head>
+<body>
+  <h1>Analyse AI en temps réel</h1>
+  <div class="ai-card">
+    <input type="text" id="userQuestion" placeholder="Pose ta question sur ton budget...">
+    <button onclick="askAI()">Analyser</button>
+    <div id="answer">Pose une question sur tes finances pour obtenir une analyse personnalisée.</div>
+  </div>
+  <script>
+    // Configuration Firebase (à remplir avec tes infos)
+    const firebaseConfig = {
+      apiKey: "TU_API_KEY",
+      authDomain: "TON_PROJET.firebaseapp.com",
+      projectId: "TON_PROJET",
+      storageBucket: "TON_PROJET.appspot.com",
+      messagingSenderId: "TON_SENDER_ID",
+      appId: "TON_APP_ID"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+
+    async function askAI() {
+      const question = document.getElementById("userQuestion").value;
+      const answerDiv = document.getElementById("answer");
+      const button = document.querySelector('button');
+      
+      if (!question) {
+        answerDiv.innerText = "Merci de poser une question sur vos finances.";
+        return;
+      }
+
+      // Disable button and show loading state
+      button.disabled = true;
+      answerDiv.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 10px;">
+          <div style="width: 20px; height: 20px; border: 2px solid #7c3aed; border-radius: 50%; border-top-color: transparent; animation: spin 1s linear infinite;"></div>
+          Analyse en cours...
+        </div>
+      `;
+
+      try {
+        const analyzeData = firebase.functions().httpsCallable('analyzeData');
+        const result = await analyzeData({ userQuestion: question });
+        
+        if (result.data.success) {
+          // Format context data
+          const context = result.data.context;
+          const contextHtml = `
+            <div style="font-size: 0.9rem; opacity: 0.8; margin-bottom: 12px; padding: 8px; background: rgba(255,255,255,0.03); border-radius: 8px;">
+              <div>💰 Total Revenus: ${context.totalRevenue.toFixed(2)}$</div>
+              <div>💳 Total Dépenses: ${context.totalExpenses.toFixed(2)}$</div>
+            </div>
+          `;
+          
+          answerDiv.innerHTML = contextHtml + result.data.answer;
+        } else {
+          throw new Error(result.data.error);
+        }
+      } catch (error) {
+        console.error("Erreur:", error);
+        answerDiv.innerHTML = `
+          <div style="color: #ef4444;">
+            ❌ ${error.message || "Erreur lors de l'analyse. Veuillez réessayer."}
+          </div>
+        `;
+      } finally {
+        button.disabled = false;
+      }
+    }
+
+    // Add keypress event listener for better UX
+    document.getElementById("userQuestion").addEventListener("keypress", function(e) {
+      if (e.key === "Enter") {
+        askAI();
+      }
+    });
+  </script>
+</body>
+</html>

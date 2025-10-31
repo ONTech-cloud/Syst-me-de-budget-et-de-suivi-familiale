@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Rapports — Budget Familial</title>
+  <!-- Google Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    :root{
+      --bg: linear-gradient(180deg,#071028 0%, #041022 100%);
+      --card-bg: rgba(255,255,255,0.03);
+      --glass: rgba(255,255,255,0.04);
+      --muted: #9aa6b2;
+      --accent1: #7c3aed;
+      --accent2: #06b6d4;
+      --success: #34d399;
+      --danger: #f87171;
+      --border: rgba(255,255,255,0.06);
+      --radius: 14px;
+      --radius-lg: 20px;
+      --glass-blur: 8px;
+    }
+
+    html,body{height:100%;margin:0;font-family:'Manrope',system-ui,-apple-system,Segoe UI,Roboto,'Helvetica Neue',Arial; background:var(--bg);color:#e6eef8;-webkit-font-smoothing:antialiased}
+
+    header{display:flex;justify-content:space-between;align-items:center;padding:18px 28px;background:linear-gradient(90deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));backdrop-filter:blur(var(--glass-blur));border-bottom:1px solid var(--border);}
+  header h1{margin:0;font-size:20px;font-weight:800;background:linear-gradient(90deg,var(--accent1),var(--accent2));background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+    header span{color:var(--muted);font-size:13px}
+
+    .container{max-width:1120px;margin:26px auto;padding:0 20px}
+
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;box-shadow:0 10px 30px rgba(2,6,23,0.5);margin-bottom:18px}
+
+    .filters{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+
+    input[type="month"], select, .btn{appearance:none;border:1px solid rgba(255,255,255,0.06);background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));color:#e6eef8;padding:10px 14px;border-radius:999px;font-size:14px}
+    select{min-width:160px}
+    input[type="month"]{min-width:150px}
+
+    .btn{display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:999px;font-weight:700;cursor:pointer;border:none;background:linear-gradient(90deg,var(--accent1),var(--accent2));color:#021028}
+    .btn.ghost{background:transparent;border:1px solid rgba(255,255,255,0.04);color:var(--muted);font-weight:600}
+    .btn:active{transform:translateY(1px)}
+
+    /* table wrapper to allow rounded corners */
+    .table-wrap{overflow:hidden;border-radius:12px;border:1px solid rgba(255,255,255,0.03)}
+    table{width:100%;border-collapse:collapse;background:transparent;font-size:14px}
+    thead th{background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));color:#cbd5e1;padding:14px 16px;text-align:left;font-weight:700}
+    tbody td{padding:12px 16px;color:#dbeafe;border-top:1px solid rgba(255,255,255,0.02)}
+    tbody tr{transition:background .18s, transform .08s}
+    tbody tr:hover{background:linear-gradient(90deg, rgba(255,255,255,0.015), rgba(255,255,255,0.02));transform:translateY(-2px)}
+
+    .summary{display:flex;gap:12px;align-items:center;flex-wrap:wrap;padding:14px;border-radius:12px}
+    .summary span{font-weight:700;color:#e2eefb}
+
+    .chart-card{padding:18px;border-radius:16px}
+    canvas{display:block;width:100% !important;height:240px !important;border-radius:12px}
+
+    /* small screens */
+    @media (max-width:720px){.filters{flex-direction:column;align-items:stretch}.filters > *{width:100%}}
+  </style>
+</head>
+<body>
+<header>
+  <h1>Rapports</h1>
+  <span>Filtres, export & graphiques</span>
+</header>
+<div class="container">
+
+  <div class="card">
+    <div class="filters">
+      <input type="month" id="mois" />
+      <select id="filtreCat"><option value="">Toutes catégories</option></select>
+      <select id="filtreUser"><option value="">Tous utilisateurs</option></select>
+      <button id="btnFiltrer" class="btn">Filtrer</button>
+      <button id="btnCSV" class="btn ghost">Exporter CSV</button>
+      <button id="btnPDF" class="btn">Exporter PDF</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Date</th><th>Description</th><th>Catégorie</th><th>Utilisateur</th><th>Type</th><th style="text-align:right">Montant</th></tr>
+        </thead>
+        <tbody id="liste"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="summary card">
+    Total Dépenses : <span id="dep">0</span> $ —
+    Total Revenus : <span id="rev">0</span> $ —
+    Solde : <strong id="solde">0</strong> $
+  </div>
+
+  <div class="card"><canvas id="chartMois" height="140"></canvas></div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:"AIzaSyCmPGAHWI8ryKaHBiQJsFBP5wioriMmMOI",
+  authDomain:"budget-eef49.firebaseapp.com",
+  projectId:"budget-eef49",
+  storageBucket:"budget-eef49.firebasestorage.app",
+  messagingSenderId:"900677643847",
+  appId:"1:900677643847:web:06caf67097a65fa9428b62"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const liste=document.getElementById("liste");
+const depEl=document.getElementById("dep");
+const revEl=document.getElementById("rev");
+const soldeEl=document.getElementById("solde");
+
+const catSel=document.getElementById("filtreCat");
+const userSel=document.getElementById("filtreUser");
+const moisSel=document.getElementById("mois");
+
+let allData=[];
+let chartMoisVar = null;
+
+// 🔹 Charger les filtres
+async function chargerFiltres(){
+  const cats = await getDocs(collection(db,"Categories"));
+  cats.forEach(c=>{
+    const opt=document.createElement("option");
+    opt.value=c.data().nom;
+    opt.textContent=c.data().nom;
+    catSel.appendChild(opt);
+  });
+  const users = await getDocs(collection(db,"Utilisateurs"));
+  users.forEach(u=>{
+    const opt=document.createElement("option");
+    opt.value=(u.data().name||u.data().nom||"");
+    opt.textContent=(u.data().name||u.data().nom||"");
+    userSel.appendChild(opt);
+  });
+}
+
+// 🔹 Charger les transactions
+async function charger(){
+  const snap = await getDocs(collection(db,"transactions"));
+  allData = snap.docs.map(d=>d.data());
+  render(allData);
+}
+
+// 🔹 Appliquer filtres
+function filtrer(){
+  let data = allData;
+  const m=moisSel.value;
+  const c=catSel.value;
+  const u=userSel.value;
+  if(m) data=data.filter(d=>d.date.startsWith(m));
+  if(c) data=data.filter(d=>d.categorie===c);
+  if(u) data=data.filter(d=>d.utilisateur===u);
+  render(data);
+}
+
+// 🔹 Rendu
+function render(data){
+  liste.innerHTML="";
+  let dep=0,rev=0;
+  const moisMap={};
+  data.forEach(d=>{
+    if(d.type==="depense") dep+=d.montant; else rev+=d.montant;
+    const tr=document.createElement("tr");
+    tr.innerHTML=`<td>${(d.date? new Date(d.date).toLocaleDateString():"—")}</td>
+      <td>${d.description}</td>
+      <td>${d.categorie}</td>
+      <td>${d.utilisateur}</td>
+      <td>${d.type}</td>
+      <td>${Number(d.montant||0).toFixed(2)} $</td>`;
+    liste.appendChild(tr);
+    const mois=new Date(d.date).toLocaleString('fr-FR',{month:'short'});
+    if(!moisMap[mois]) moisMap[mois]={dep:0,rev:0};
+    if(d.type==="depense") moisMap[mois].dep+=d.montant;
+    else moisMap[mois].rev+=d.montant;
+  });
+  depEl.textContent=dep.toFixed(2);
+  revEl.textContent=rev.toFixed(2);
+  soldeEl.textContent=(rev-dep).toFixed(2);
+  graph(moisMap);
+}
+
+// 🔹 Graphique mensuel
+function graph(map){
+  const ctx = document.getElementById("chartMois").getContext('2d');
+  const labels = Object.keys(map);
+  const depData = Object.values(map).map(m=>m.dep);
+  const revData = Object.values(map).map(m=>m.rev);
+
+  // destroy previous chart if exists
+  if(chartMoisVar){
+    try{ chartMoisVar.destroy(); }catch(e){}
+    chartMoisVar = null;
+  }
+
+  chartMoisVar = new Chart(ctx,{
+    type: 'bar',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Dépenses',
+          data: depData,
+          backgroundColor: '#fb7185',
+          borderRadius: 12,
+          borderSkipped: false,
+          maxBarThickness: 36
+        },
+        {
+          label: 'Revenus',
+          data: revData,
+          backgroundColor: '#34d399',
+          borderRadius: 12,
+          borderSkipped: false,
+          maxBarThickness: 36
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        title: {display:true, text: 'Rapport Mensuel', color:'#e6eef8', font:{size:14,weight:700}},
+        legend: {labels:{color:'#cbd5e1'}}
+      },
+      scales: {
+        x: { ticks: { color: '#cbd5e1' }, grid: { display: false } },
+        y: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(255,255,255,0.03)' }, beginAtZero: true }
+      }
+    }
+  });
+}
+
+// 🔹 Export CSV
+document.getElementById("btnCSV").onclick=()=>{
+  let csv="Date,Description,Categorie,Utilisateur,Type,Montant\n";
+  allData.forEach(d=>{
+    csv+=`${d.date},${d.description},${d.categorie},${d.utilisateur},${d.type},${d.montant}\n`;
+  });
+  const blob=new Blob([csv],{type:"text/csv"});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="rapport_budget.csv";
+  a.click();
+};
+
+// 🔹 Export PDF
+// 🔹 Export PDF (pro) via jsPDF AutoTable
+document.getElementById("btnPDF").onclick=async ()=>{
+  const { jsPDF } = await import('https://cdn.skypack.dev/jspdf@2.5.1');
+  await import('https://cdn.skypack.dev/jspdf-autotable@3.8.2');
+  const pdf = new jsPDF('p','mm','a4');
+  pdf.setFontSize(16); pdf.text('Rapport Budget — Transactions', 14, 16);
+  pdf.setFontSize(10); pdf.text(new Date().toLocaleString(), 14, 22);
+  pdf.autoTable({
+    startY: 28,
+    head: [["Date","Description","Catégorie","Utilisateur","Type","Montant ($)"]],
+    body: Array.from(liste.querySelectorAll('tr')).map(tr=>Array.from(tr.children).map(td=>td.textContent)),
+    theme:'grid', styles:{fontSize:10, cellPadding:3}, headStyles:{fillColor:[28,35,58],textColor:255},
+    columnStyles:{5:{halign:'right'}}
+  });
+  pdf.save('rapport_transactions.pdf');
+};
+
+document.getElementById("btnFiltrer").onclick=filtrer;
+
+await chargerFiltres();
+await charger();
+</script>
+</body>
+</html>

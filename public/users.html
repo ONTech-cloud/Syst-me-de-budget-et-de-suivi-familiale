@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Utilisateurs — Budget Familial</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --bg: radial-gradient(circle at top left, #0b0f1d, #020617);
+      --accent: linear-gradient(90deg,#7c3aed,#06b6d4);
+      --muted: #94a3b8;
+      --border: rgba(255,255,255,0.08);
+      --card: rgba(255,255,255,0.05);
+      --radius: 16px;
+    }
+
+    *{box-sizing:border-box;}
+    html,body{
+      margin:0;
+      font-family:'Manrope',sans-serif;
+      background:var(--bg);
+      color:#e2e8f0;
+      min-height:100vh;
+    }
+
+    header{
+      background:rgba(255,255,255,0.04);
+      backdrop-filter:blur(10px);
+      border-bottom:1px solid var(--border);
+      padding:16px 24px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+    }
+    header h1{
+      margin:0;
+      font-size:20px;
+      font-weight:700;
+      background:var(--accent);
+      -webkit-background-clip:text;
+      -webkit-text-fill-color:transparent;
+    }
+
+    section{padding:24px 32px;}
+
+    .card{
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding:20px;
+      margin-bottom:20px;
+      box-shadow:0 8px 25px rgba(0,0,0,0.3);
+    }
+
+    .card h2{margin-top:0;color:#cbd5e1;}
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      background:var(--card);
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      overflow:hidden;
+    }
+    th,td{
+      padding:12px 14px;
+      text-align:left;
+      font-size:14px;
+    }
+    th{
+      background:rgba(255,255,255,0.05);
+      color:#cbd5e1;
+    }
+    tr:nth-child(even){background:rgba(255,255,255,0.03);}
+    tr:hover{background:rgba(255,255,255,0.08);}
+
+    button{
+      background:var(--accent);
+      border:none;
+      color:#0f172a;
+      padding:10px 16px;
+      border-radius:12px;
+      font-weight:600;
+      cursor:pointer;
+      transition:opacity .2s;
+    }
+    button:hover{opacity:.9;}
+
+    .action-btn{
+      background:rgba(255,255,255,0.07);
+      color:#cbd5e1;
+      border:1px solid var(--border);
+      padding:6px 10px;
+      border-radius:8px;
+      margin:0 4px;
+      cursor:pointer;
+    }
+    .action-btn:hover{background:rgba(255,255,255,0.15);}
+
+    input,select{
+      background:rgba(255,255,255,0.06);
+      border:1px solid var(--border);
+      color:#f1f5f9;
+      padding:8px 12px;
+      border-radius:10px;
+      width:100%;
+      font-size:14px;
+      margin-bottom:10px;
+    }
+    input::placeholder{color:#94a3b8;}
+
+    .form-inline{
+      display:grid;
+      grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+      gap:12px;
+      align-items:end;
+      margin-bottom:10px;
+    }
+
+    .empty{text-align:center;color:var(--muted);padding:24px;}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Utilisateurs</h1>
+    <span>Ajout, suppression et gestion</span>
+  </header>
+
+  <section>
+    <div class="card">
+      <h2>Nouvel utilisateur</h2>
+      <div class="form-inline">
+        <input id="nom" placeholder="Nom complet">
+        <input id="email" type="email" placeholder="Email">
+        <input id="motdepasse" type="password" placeholder="Mot de passe">
+        <select id="role">
+          <option value="membre">Membre</option>
+          <option value="admin">Admin</option>
+        </select>
+        <button id="addBtn">Ajouter</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Liste des utilisateurs</h2>
+      <table id="tableUsers">
+        <thead>
+          <tr>
+            <th>Nom</th><th>Email</th><th>Rôle</th><th>Actions</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="emptyMsg" class="empty" style="display:none;">Aucun utilisateur trouvé.</div>
+    </div>
+  </section>
+
+  <!-- MODAL DETAILS UTILISATEUR -->
+  <div class="modal" id="detailsModal" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:100;">
+    <div class="modal-content" style="background:rgba(20,24,40,0.8);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:16px;padding:24px;width:90%;max-width:520px;">
+      <h3 style="margin-top:0;color:#fff;">Détails utilisateur</h3>
+      <div id="detailsBody" style="color:#cbd5e1;line-height:1.6;"></div>
+      <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
+        <button id="closeDetails">Fermer</button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, addDoc, deleteDoc, doc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+    import { getAuth, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCmPGAHWI8ryKaHBiQJsFBP5wioriMmMOI",
+      authDomain: "budget-eef49.firebaseapp.com",
+      projectId: "budget-eef49",
+      storageBucket: "budget-eef49.firebasestorage.app",
+      messagingSenderId: "900677643847",
+      appId: "1:900677643847:web:06caf67097a65fa9428b62"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+    // Utiliser une instance secondaire pour créer des comptes sans perturber la session courante
+    const adminApp = initializeApp(firebaseConfig, "admin");
+    const adminAuth = getAuth(adminApp);
+
+    const tbody = document.querySelector("#tableUsers tbody");
+    const addBtn = document.getElementById("addBtn");
+    const emptyMsg = document.getElementById("emptyMsg");
+    const detailsModal = document.getElementById("detailsModal");
+    const detailsBody = document.getElementById("detailsBody");
+    const closeDetails = document.getElementById("closeDetails");
+    closeDetails.addEventListener("click", ()=> detailsModal.style.display = "none");
+
+    // --- Charger les utilisateurs ---
+    async function chargerUtilisateurs(){
+      // Collection cible: "Utilisateurs" (majuscule)
+      const snap = await getDocs(collection(db,"Utilisateurs"));
+      const rows = [];
+      snap.forEach(docSnap => rows.push({ id: docSnap.id, ...docSnap.data() }));
+      remplirTable(rows);
+    }
+
+    // --- Remplir le tableau ---
+    function remplirTable(rows){
+      tbody.innerHTML = "";
+      if(rows.length===0){ emptyMsg.style.display="block"; return; }
+      emptyMsg.style.display="none";
+
+      rows.forEach(u=>{
+        const displayName = u.name || u.nom || "—";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${displayName}</td>
+          <td>${u.email || "—"}</td>
+          <td>${u.role || "membre"}</td>
+          <td>
+            <button type="button" class="action-btn" data-id="${u.id}" data-action="details" onclick="handleUserAction('details','${u.id}')">Plus de détails</button>
+            <button type="button" class="action-btn" data-id="${u.id}" data-action="delete" onclick="handleUserAction('delete','${u.id}', this)">Supprimer</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+        // inline onclick handlers ensure capture even in tricky contexts
+      });
+    }
+
+    // --- Ajouter un utilisateur ---
+    async function ajouterUtilisateur(){
+      const nom = document.getElementById("nom").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const motdepasse = document.getElementById("motdepasse").value.trim();
+      const role = document.getElementById("role").value;
+
+      if(!nom || !email || !motdepasse){
+        alert("Veuillez remplir tous les champs.");
+        return;
+      }
+
+      try {
+        // 1) Créer le compte Auth via l'instance secondaire
+        await createUserWithEmailAndPassword(adminAuth, email, motdepasse);
+
+        // 2) Enregistrer la fiche Firestore dans "Utilisateurs"
+        await addDoc(collection(db, "Utilisateurs"), {
+          name: nom,
+          email,
+          motdepasse, // ATTENTION: stockage en clair (à éviter en prod)
+          role,
+          createdAt: serverTimestamp()
+        });
+        resetForm();
+        chargerUtilisateurs();
+      } catch(e){
+        console.error("Erreur ajout:", e);
+        alert("Erreur lors de l'ajout : " + e.message);
+      }
+    }
+
+    // --- Supprimer un utilisateur ---
+    async function supprimerUtilisateur(id, btn){
+      if(!confirm("Supprimer cet utilisateur ?")) return;
+      try {
+        if(btn){ btn.disabled = true; btn.textContent = "Suppression..."; }
+        // Suppression côté Firestore uniquement (pas côté Auth ici)
+        await deleteDoc(doc(db,"Utilisateurs",id));
+        chargerUtilisateurs();
+      } catch(e){
+        console.error("Erreur suppression:", e);
+        alert("Erreur lors de la suppression : " + e.message);
+      } finally {
+        if(btn){ btn.disabled = false; btn.textContent = "Supprimer"; }
+      }
+    }
+
+    async function afficherDetailsUtilisateur(id){
+      try {
+        const ref = doc(db, "Utilisateurs", id);
+        const snap = await (await import("https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js")).getDoc(ref);
+        if(!snap.exists()){
+          alert("Utilisateur introuvable");
+          return;
+        }
+        const d = snap.data();
+        const lignes = [
+          `<strong>Nom:</strong> ${d.name || d.nom || "—"}`,
+          `<strong>Email:</strong> ${d.email || "—"}`,
+          `<strong>Rôle:</strong> ${d.role || "membre"}`,
+          `<strong>Mot de passe:</strong> ${d.motdepasse || "—"}`
+        ];
+        detailsBody.innerHTML = `<div>${lignes.join("<br>")}</div>`;
+        detailsModal.style.display = "flex";
+      } catch(e){
+        console.error("Erreur détails:", e);
+        alert("Erreur lors du chargement des détails : " + e.message);
+      }
+    }
+
+    // --- Écoute sur les boutons ---
+    // Fallback delegated handler (kept for safety)
+    document.body.addEventListener("click", e=>{
+      const btn = e.target.closest(".action-btn");
+      if(!btn) return;
+      e.preventDefault();
+      const id = btn.dataset.id;
+      const action = btn.dataset.action;
+      console.debug('Users action click', action, id);
+      if(action==="delete") supprimerUtilisateur(id, btn);
+      if(action==="details") afficherDetailsUtilisateur(id);
+    });
+
+    // Global handler for inline onclick
+    window.handleUserAction = (action, id, btn) => {
+      try {
+        if(action === 'delete') return supprimerUtilisateur(id, btn);
+        if(action === 'details') return afficherDetailsUtilisateur(id);
+      } catch(e){ console.error(e); }
+    };
+
+    function resetForm(){
+      document.querySelectorAll("input").forEach(i=>i.value="");
+      document.getElementById("role").value="membre";
+    }
+
+    addBtn.addEventListener("click", ajouterUtilisateur);
+    chargerUtilisateurs();
+  </script>
+</body>
+</html>

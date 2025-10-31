@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Dashboard — Budget Familial</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root{
+      --bg: linear-gradient(180deg,#071026 0%, #07142a 100%);
+      --card-radius:14px;
+      --glass-border: rgba(255,255,255,0.06);
+      --muted:#9aa4b2;
+      --accent: linear-gradient(90deg,#00d4ff,#7c3aed);
+      --soft-shadow: 0 14px 40px rgba(2,6,23,0.55);
+      --transition:320ms cubic-bezier(.2,.9,.3,1);
+    }
+    html,body{height:100%;margin:0;font-family:'Inter',system-ui,Arial;background:var(--bg);color:#eaf2ff}
+    header{display:flex;justify-content:space-between;align-items:center;padding:20px 32px}
+    header h1{margin:0;font-weight:700}
+    .grid{display:grid;grid-template-columns:1fr 340px;gap:18px;padding:0 32px}
+    .card{background:linear-gradient(180deg, rgba(255,255,255,0.03), rgba(255,255,255,0.02));border-radius:var(--card-radius);padding:18px;box-shadow:var(--soft-shadow);border:1px solid var(--glass-border)}
+    .summary{display:flex;gap:12px;align-items:center;justify-content:space-between}
+    .kpi{padding:12px;border-radius:12px;background:linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.02));min-width:120px;text-align:center}
+    label{display:block;color:var(--muted);font-size:13px;margin-top:8px}
+    select,input,button,textarea{border-radius:12px;padding:10px;border:1px solid rgba(255,255,255,0.06);background:rgba(0,0,0,0.25);color:#eaf2ff;outline:none;transition:box-shadow var(--transition),transform var(--transition)}
+    button.primary{background:var(--accent);color:#041026;border:0;padding:10px 12px;border-radius:12px;cursor:pointer;box-shadow:0 12px 36px rgba(6,11,24,0.6)}
+    table{width:100%;border-collapse:collapse;margin-top:12px}
+    td,th{padding:10px;border-bottom:1px solid rgba(255,255,255,0.02);color:#eaf2ff}
+    .tx-row:hover{background:rgba(255,255,255,0.01);transform:translateY(-4px)}
+    .notes{max-height:320px;overflow:auto}
+    @media (max-width:980px){ .grid{grid-template-columns:1fr; padding:0 18px} }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Budget Familial — Vue membre</h1>
+    <div>
+      <button id="btnLogout" class="primary">Se déconnecter</button>
+    </div>
+  </header>
+
+  <main class="grid">
+    <section>
+      <div class="card">
+        <h3 style="margin:0 0 8px">Résumé</h3>
+        <div class="summary">
+          <div class="kpi" id="kpiIncome">—</div>
+          <div class="kpi" id="kpiExpense">—</div>
+          <div class="kpi" id="kpiBalance">—</div>
+        </div>
+
+        <div style="margin-top:12px">
+          <label>Filtrer par catégorie</label>
+          <select id="filterCategory"><option value="">— Tous —</option></select>
+          <label style="margin-top:8px">Filtrer par mois</label>
+          <input id="filterMonth" type="month" />
+          <button id="applyFilter" class="primary" style="margin-top:10px">Appliquer</button>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:16px">
+        <h3 style="margin:0 0 8px">Transactions</h3>
+        <table id="txTable"><thead><tr><th>Date</th><th>Type</th><th>Montant</th><th>Catégorie</th></tr></thead><tbody></tbody></table>
+      </div>
+    </section>
+
+    <aside>
+      <div class="card">
+        <h3 style="margin:0 0 8px">Suggestions / Notifications</h3>
+        <div id="notes" class="notes"></div>
+        <hr style="opacity:0.06;margin:12px 0" />
+        <h4 style="margin:0 0 6px">Envoyer une suggestion</h4>
+        <textarea id="suggestionText" rows="3"></textarea>
+        <button id="sendSuggestion" class="primary" style="margin-top:10px;width:100%">Envoyer</button>
+        <p class="tx-meta" style="margin-top:8px;color:var(--muted)">Les suggestions sont envoyées à l'administrateur.</p>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    (function(){
+      const STORAGE_KEY = 'budgetData';
+      function load(){ try{ const raw=localStorage.getItem(STORAGE_KEY); return raw?JSON.parse(raw):null;}catch(e){return null;} }
+      function save(s){ localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); }
+
+      const summaryEl = document.getElementById('summary');
+      const txTableBody = document.querySelector('#txTable tbody');
+      const filterCategory = document.getElementById('filterCategory');
+      const filterMonth = document.getElementById('filterMonth');
+      const applyFilter = document.getElementById('applyFilter');
+      const notesEl = document.getElementById('notes');
+      const sendBtn = document.getElementById('sendSuggestion');
+
+      let store = load() || {users:[],categories:[],transactions:[],notifications:[]};
+
+      function renderSummary(){
+        const inc = store.transactions.filter(t=>t.type==='income').reduce((s,t)=>s+t.amount,0);
+        const exp = store.transactions.filter(t=>t.type==='expense').reduce((s,t)=>s+t.amount,0);
+        document.getElementById('kpiIncome').textContent = 'Revenus: ' + inc.toFixed(2) + ' €';
+        document.getElementById('kpiExpense').textContent = 'Dépenses: ' + exp.toFixed(2) + ' €';
+        document.getElementById('kpiBalance').textContent = 'Solde: ' + (inc-exp).toFixed(2) + ' €';
+      }
+
+      function populateFilters(){
+        filterCategory.innerHTML = '<option value="">— Tous —</option>';
+        store.categories.forEach(c=>{
+          const o = document.createElement('option'); o.value=c.id; o.textContent=c.name; filterCategory.appendChild(o);
+        });
+      }
+
+      function applyFiltersAndRender(){
+        const cat = filterCategory.value;
+        const month = filterMonth.value; // YYYY-MM
+        let rows = store.transactions.slice().sort((a,b)=> new Date(b.date)-new Date(a.date));
+        if(cat) rows = rows.filter(r=>r.category_id===cat);
+        if(month){
+          rows = rows.filter(r=> r.date.slice(0,7)===month );
+        }
+        txTableBody.innerHTML = '';
+        rows.forEach(t=>{
+          const tr = document.createElement('tr'); tr.className='tx-row';
+          const date = new Date(t.date).toLocaleString();
+          tr.innerHTML = `<td>${date}</td><td>${t.type}</td><td>${t.amount.toFixed(2)} €</td><td>${(store.categories.find(c=>c.id===t.category_id)||{name:'—'}).name}</td>`;
+          txTableBody.appendChild(tr);
+        });
+      }
+
+      function renderNotes(){
+        notesEl.innerHTML = '';
+        store.notifications.forEach(n=>{
+          const d = document.createElement('div');
+          d.style.padding='8px 0'; d.style.borderBottom='1px solid rgba(255,255,255,0.02)';
+          d.innerHTML = `<strong>${n.type}</strong> — ${n.message} <div class="tx-meta" style="float:right;color:var(--muted)">${n.status}</div>`;
+          notesEl.appendChild(d);
+        });
+      }
+
+      applyFilter.addEventListener('click', ()=>{ applyFiltersAndRender(); });
+
+      sendBtn.addEventListener('click', ()=>{
+        const text = document.getElementById('suggestionText').value.trim();
+        if(!text) return alert('Entrez une suggestion.');
+        const note = { id: 'n-'+Math.random().toString(36).slice(2,9), type:'suggestion', message:text, status:'new' };
+        store.notifications.unshift(note);
+        save(store);
+        renderNotes();
+        document.getElementById('suggestionText').value='';
+        alert('Suggestion envoyée.');
+      });
+
+      document.getElementById('btnLogout').addEventListener('click', ()=>{
+        sessionStorage.removeItem('user'); localStorage.removeItem('user'); window.location.href='login.html';
+      });
+
+      (function init(){
+        if(!store || !store.transactions){ store = {users:[],categories:[],transactions:[],notifications:[]}; localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); }
+        renderSummary(); populateFilters(); applyFiltersAndRender(); renderNotes();
+      })();
+
+    })();
+  </script>
+</body>
+</html>

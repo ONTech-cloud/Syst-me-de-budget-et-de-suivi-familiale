@@ -1,0 +1,51 @@
+/*
+  Ce fichier exporte un seed et des helpers pour initialiser / lire / écrire
+  le store local (clé: "budgetData"). Conçu pour être remplacé par Firestore
+  plus tard.
+*/
+export type User = { id: string; name: string; email: string; role: 'admin'|'member' };
+export type Category = { id: string; name: string; budget_max?: number; color?: string };
+export type Transaction = { id: string; user_id: string; type: 'expense'|'income'; amount: number; category_id: string; date: string; note?: string };
+export type Notification = { id: string; type: string; message: string; status: 'new'|'read' };
+
+export const seedData = {
+  users: [
+    { id: 'u-admin', name: 'Administrateur', email: 'admin@familiale.local', role: 'admin' as const },
+    { id: 'u-1', name: 'Parent A', email: 'parenta@familiale.local', role: 'member' as const },
+    { id: 'u-2', name: 'Parent B', email: 'parentb@familiale.local', role: 'member' as const }
+  ],
+  categories: [
+    { id: 'c-food', name: 'Alimentation', budget_max: 600, color: '#ef4444' },
+    { id: 'c-rent', name: 'Logement', budget_max: 1200, color: '#3b82f6' },
+    { id: 'c-transport', name: 'Transport', budget_max: 200, color: '#10b981' },
+    { id: 'c-leisure', name: 'Loisirs', budget_max: 150, color: '#f59e0b' }
+  ],
+  transactions: [
+    { id: 't-1', user_id: 'u-1', type: 'expense', amount: 120, category_id: 'c-food', date: new Date().toISOString(), note: 'Courses semaine' },
+    { id: 't-2', user_id: 'u-2', type: 'expense', amount: 50, category_id: 'c-transport', date: new Date().toISOString(), note: 'Essence' },
+    { id: 't-3', user_id: 'u-1', type: 'income', amount: 2000, category_id: 'c-rent', date: new Date().toISOString(), note: 'Salaire (même catégorie pour simplicité)' }
+  ],
+  notifications: [] as Notification[]
+};
+
+const STORAGE_KEY = 'budgetData';
+
+export function loadStore(): typeof seedData {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* ignore */ }
+  // clone seed
+  const clone = JSON.parse(JSON.stringify(seedData));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(clone));
+  return clone;
+}
+
+export function saveStore(store: typeof seedData) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+}
+
+export function resetStoreToSeed() {
+  const clone = JSON.parse(JSON.stringify(seedData));
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(clone));
+}

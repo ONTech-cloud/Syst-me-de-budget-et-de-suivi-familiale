@@ -1,0 +1,41 @@
+{
+  
+  "type": "module",
+  
+  "name": "familiale-budget",
+  
+  "version": "1.0.0",
+  
+  "description": "Créer une application web moderne pour **gérer le budget familial** (famille de 5 personnes), avec : - un **tableau de bord visuel**,   - une **gestion complète des dépenses et revenus**,   - une **interface administrateur** centralisée,   - une **intégration IA** pour suggérer des optimisations financières.",
+  
+  "main": "proxy.js",
+  
+  "scripts": {
+  
+    
+  "test": "echo \"Error: no test specified\" && exit 1"
+  
+  },
+  
+  "keywords": [],
+  
+  "author": "",
+  
+  "license": "ISC",
+  
+  "dependencies": {
+  
+    
+  "cors": "^2.8.5",
+  
+    
+  "dotenv": "^17.2.3",
+  
+    
+  "express": "^5.1.0",
+  
+    
+  "node-fetch": "^3.3.2"
+  
+  }
+}

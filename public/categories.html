@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Catégories — Budget Familial</title>
+<style>
+  :root{
+    --bg: radial-gradient(circle at top left, #0b0f1d, #020617);
+    --accent: linear-gradient(90deg,#7c3aed,#06b6d4);
+    --muted:#94a3b8;
+    --border: rgba(255,255,255,0.08);
+    --card: rgba(255,255,255,0.05);
+    --radius:16px;
+  }
+  html,body{
+    margin:0;height:100%;
+    background:var(--bg);
+    color:#e2e8f0;
+    font-family:'Manrope',sans-serif;
+  }
+  .container{padding:24px 32px;max-width:1000px;margin:auto;}
+  header{
+    background:rgba(255,255,255,0.04);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+    padding:16px 24px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  header h1{
+    margin:0;
+    font-size:20px;
+    font-weight:700;
+    background:var(--accent);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:20px;
+    box-shadow:0 8px 25px rgba(0,0,0,0.3);
+    backdrop-filter:blur(10px);
+  }
+
+  form.card{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:12px;
+  }
+  input,select{
+    padding:10px 12px;
+    border-radius:10px;
+    border:1px solid var(--border);
+    background:rgba(255,255,255,0.06);
+    color:#f1f5f9;font-size:14px;
+  }
+  /* Dropdown sombre pour cohérence avec transactions */
+  select{background-color:rgba(2,6,23,0.95);color:#e2e8f0;}
+  select option{background-color:#0b0f1d;color:#e2e8f0;}
+  select:focus{outline:2px solid var(--border);} 
+  input[type="color"]{padding:0;height:40px;width:60px;border-radius:8px;}
+  button{
+    border:none;border-radius:12px;
+    padding:10px 14px;font-weight:700;
+    background:var(--accent);
+    color:#0f172a;
+    cursor:pointer;
+    transition:opacity .2s, transform .2s;
+  }
+  button:hover{opacity:.95;transform:translateY(-1px);} 
+
+  table{width:100%;border-collapse:collapse;font-size:14px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:rgba(255,255,255,0.03);} 
+  th,td{padding:12px 12px;text-align:left;}
+  th{background:rgba(255,255,255,0.05);color:#cbd5e1;}
+  tr:nth-child(even){background:rgba(255,255,255,0.03);} 
+  tr:hover{background:rgba(255,255,255,0.08);} 
+  .badge{display:inline-block;width:18px;height:18px;border-radius:50%;margin-right:6px;vertical-align:middle;border:1px solid var(--border);} 
+  .actions{display:flex;justify-content:flex-end;align-items:center;gap:8px;}
+  .actions button{padding:6px 10px;font-size:13px;background:rgba(255,255,255,0.07);color:#cbd5e1;border:1px solid var(--border);} 
+  .actions button:hover{background:rgba(255,255,255,0.12);} 
+
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,0.6);display:none;align-items:center;justify-content:center;z-index:100;}
+  .modal.active{display:flex;}
+  .modal-content{background:rgba(20,24,40,0.9);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:16px;padding:20px;width:90%;max-width:520px;color:#e2e8f0;}
+  .modal-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:16px;}
+  .modal-content h3{margin-top:0}
+
+  .accordion-panel{padding:12px;border-top:1px solid var(--border);}
+  .tx-row{display:flex;gap:12px;justify-content:space-between;border:1px solid var(--border);border-radius:12px;padding:10px;margin:6px 0;background:rgba(255,255,255,0.03)}
+  .tx-meta{color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Catégories</h1>
+  <span>Ajout, modification et gestion</span>
+</header>
+<div class="container">
+
+  <form id="formCat" class="card">
+    <input id="nom" placeholder="Nom (ex: Alimentation)" required />
+    <input id="limite" type="number" placeholder="Limite ($)" required />
+    <input id="couleur" type="color" value="#7c3aed" />
+    <select id="type">
+      <option value="depense">Dépense</option>
+      <option value="revenu">Revenu</option>
+    </select>
+    <button type="submit">Ajouter</button>
+  </form>
+
+  <div class="card" id="catsCard">
+    <div style="display:flex;justify-content:flex-end;margin-bottom:10px;">
+      <button id="exportPdfBtn" type="button">Exporter PDF</button>
+    </div>
+    <table>
+      <thead>
+        <tr><th>Couleur</th><th>Nom</th><th>Type</th><th>Limite</th><th style="width:260px;">Actions</th></tr>
+      </thead>
+      <tbody id="listeCats"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Modal édition catégorie -->
+<div id="modalCat" class="modal">
+  <div class="modal-content">
+    <h3>Modifier la catégorie</h3>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:end;">
+      <div style="grid-column:span 2;">
+        <label>Nom</label>
+        <input id="m_nom" />
+      </div>
+      <div>
+        <label>Limite ($)</label>
+        <input id="m_limite" type="number" />
+      </div>
+      <div>
+        <label>Couleur</label>
+        <input id="m_couleur" type="color" />
+      </div>
+      <div style="grid-column:span 2;">
+        <label>Type</label>
+        <select id="m_type">
+          <option value="depense">Dépense</option>
+          <option value="revenu">Revenu</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button id="m_cancel" type="button">Annuler</button>
+      <button id="m_save" type="button">Enregistrer</button>
+    </div>
+  </div>
+ </div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, query, where, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey:"AIzaSyCmPGAHWI8ryKaHBiQJsFBP5wioriMmMOI",
+  authDomain:"budget-eef49.firebaseapp.com",
+  projectId:"budget-eef49",
+  storageBucket:"budget-eef49.firebasestorage.app",
+  messagingSenderId:"900677643847",
+  appId:"1:900677643847:web:06caf67097a65fa9428b62"
+};
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const form = document.getElementById("formCat");
+const liste = document.getElementById("listeCats");
+const modal = document.getElementById("modalCat");
+const mNom = document.getElementById("m_nom");
+const mLimite = document.getElementById("m_limite");
+const mCouleur = document.getElementById("m_couleur");
+const mType = document.getElementById("m_type");
+const mCancel = document.getElementById("m_cancel");
+const mSave = document.getElementById("m_save");
+let editingId = null;
+let expandStateById = {};
+
+function toDateObj(value){
+  if(!value) return null;
+  if(typeof value === 'object' && typeof value.toDate === 'function'){
+    return value.toDate();
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// 🔹 Ajouter une catégorie
+form.addEventListener("submit", async (e)=>{
+  e.preventDefault();
+  const data = {
+    nom: document.getElementById("nom").value.trim(),
+    limite: parseFloat(document.getElementById("limite").value),
+    couleur: document.getElementById("couleur").value,
+    type: document.getElementById("type").value
+  };
+  if(!data.nom || !data.limite) return alert("Remplis tous les champs !");
+  await addDoc(collection(db,"Categories"),data);
+  form.reset();
+  document.getElementById("couleur").value = "#7c3aed";
+  charger();
+});
+
+// 🔹 Charger la liste
+async function charger(){
+  const snap = await getDocs(collection(db,"Categories"));
+  liste.innerHTML="";
+  const rows = [];
+  snap.forEach(docSnap=> rows.push({ id: docSnap.id, ...docSnap.data() }));
+  // Trie par type puis nom
+  rows.sort((a,b)=> (a.type||'').localeCompare(b.type||'') || (a.nom||'').localeCompare(b.nom||''));
+  rows.forEach(d=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td><span class="badge" style="background:${d.couleur}"></span></td>
+      <td>${d.nom}</td>
+      <td>${d.type}</td>
+      <td>${Number(d.limite||0).toFixed(2)} $</td>
+      <td class="actions">
+        <button type="button" onclick="toggleTx('${d.id}','${encodeURIComponent(d.nom)}')">Voir plus</button>
+        <button type="button" onclick="edit('${d.id}','${encodeURIComponent(d.nom)}','${d.limite}','${d.couleur}','${d.type}')">✏️</button>
+        <button type="button" onclick="suppr('${d.id}')">🗑️</button>
+      </td>`;
+    liste.appendChild(tr);
+    // Ligne accordéon
+    const trAcc = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 5;
+    td.innerHTML = `<div id="acc_${d.id}" class="accordion-panel" style="display:${expandStateById[d.id]? 'block':'none'};">
+      <div class="tx-meta">Transactions...</div>
+    </div>`;
+    trAcc.appendChild(td);
+    liste.appendChild(trAcc);
+    if(expandStateById[d.id]){
+      chargerTransactionsCategorie(d.id, d.nom);
+    }
+  });
+}
+
+// 🔹 Supprimer
+window.suppr = async (id)=>{
+  if(confirm("Supprimer cette catégorie ?")){
+    await deleteDoc(doc(db,"Categories",id));
+    charger();
+  }
+}
+
+// 🔹 Modifier
+window.edit = (id,nomEnc,limite,couleur,type)=>{
+  editingId = id;
+  mNom.value = decodeURIComponent(nomEnc);
+  mLimite.value = limite;
+  mCouleur.value = couleur || "#7c3aed";
+  mType.value = type || "depense";
+  modal.classList.add('active');
+}
+
+mCancel.addEventListener('click', ()=>{
+  modal.classList.remove('active');
+  editingId = null;
+});
+
+mSave.addEventListener('click', async ()=>{
+  if(!editingId) return;
+  const newNom = mNom.value.trim();
+  const newLim = parseFloat(mLimite.value);
+  const newCol = mCouleur.value;
+  const newType = mType.value;
+  if(!newNom || isNaN(newLim)) { alert("Champs invalides"); return; }
+  await updateDoc(doc(db,"Categories",editingId),{
+    nom:newNom, limite:newLim, couleur:newCol, type:newType
+  });
+  modal.classList.remove('active');
+  editingId = null;
+  charger();
+});
+
+// Accordéon: afficher transactions d'une catégorie
+window.toggleTx = (id, nomEnc)=>{
+  console.debug('toggleTx clicked', id);
+  expandStateById[id] = !expandStateById[id];
+  const el = document.getElementById(`acc_${id}`);
+  if(!el) return;
+  el.style.display = expandStateById[id] ? 'block' : 'none';
+  if(expandStateById[id]){
+    chargerTransactionsCategorie(id, decodeURIComponent(nomEnc));
+  }
+}
+
+async function chargerTransactionsCategorie(catId, catNom){
+  console.debug('load tx for category', catId, catNom);
+  const container = document.getElementById(`acc_${catId}`);
+  if(!container) return;
+  container.innerHTML = '<div class="tx-meta">Chargement...</div>';
+  try{
+    const q = query(collection(db,'transactions'), where('categorie','==', catNom));
+    const snap = await getDocs(q);
+    if(snap.empty){
+      container.innerHTML = '<div class="tx-meta">Aucune transaction pour cette catégorie.</div>';
+      return;
+    }
+    const items = [];
+    snap.forEach(ds=> items.push(ds.data()));
+    items.sort((a,b)=>{
+      const da = toDateObj(a.date), dbb = toDateObj(b.date);
+      if(!da && !dbb) return 0;
+      if(!da) return 1;
+      if(!dbb) return -1;
+      return dbb.getTime() - da.getTime();
+    });
+
+    const list = document.createElement('div');
+    list.style.marginTop = '6px';
+    items.forEach(t=>{
+      const row = document.createElement('div');
+      row.className = 'tx-row';
+      const d = toDateObj(t.date);
+      row.innerHTML = `
+        <div>
+          <div style=\"font-weight:600;\">${t.description||'—'}</div>
+          <div class=\"tx-meta\">${t.utilisateur||'—'} • ${d ? d.toLocaleDateString() : '—'}</div>
+        </div>
+        <div style=\"font-weight:700;\">${Number(t.montant||0).toFixed(2)} $</div>
+      `;
+      list.appendChild(row);
+    });
+    container.innerHTML = '';
+    container.appendChild(list);
+  }catch(e){
+    console.error(e);
+    container.innerHTML = '<div style="color:#ef4444">Erreur lors du chargement.</div>';
+  }
+}
+
+charger();
+
+// --- Export PDF ---
+function loadScriptOnce(src, check){
+  return new Promise((resolve, reject)=>{
+    if(check && check()) return resolve();
+    const s=document.createElement('script');
+    s.src=src; s.async=true;
+    s.onload=()=> resolve();
+    s.onerror=(e)=> reject(e);
+    document.head.appendChild(s);
+  });
+}
+
+async function exportCategoriesPDF(){
+  try{
+    await loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js', ()=> window.jspdf && window.jspdf.jsPDF);
+    await loadScriptOnce('https://cdn.jsdelivr.net/npm/jspdf-autotable@3.8.2/dist/jspdf.plugin.autotable.min.js', ()=> window.jspdf && window.jspdf.jsPDF && window.jspdf.jsPDF.API.autoTable);
+
+    // Récupère proprement les catégories depuis Firestore
+    const snap = await getDocs(collection(db, 'Categories'));
+    const rowsAll = [];
+    snap.forEach(docSnap=> rowsAll.push({ id: docSnap.id, ...docSnap.data() }));
+    const rowsSorted = rowsAll.sort((a,b)=> (a.type||'').localeCompare(b.type||'') || (a.nom||'').localeCompare(b.nom||''));
+    const body = rowsSorted.map(r=> [
+      '',
+      r.nom || '',
+      r.type || '',
+      typeof r.limite === 'number' ? r.limite.toFixed(2) + ' $' : ''
+    ]);
+
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF('p','mm','a4');
+
+    // Titre
+    pdf.setTextColor(20, 24, 40);
+    pdf.setFontSize(16);
+    pdf.text('Catégories — Budget Familial', 14, 16);
+    pdf.setFontSize(10);
+    const dateStr = new Date().toLocaleString();
+    pdf.text(dateStr, 14, 22);
+
+    // Tableau pro avec AutoTable
+    pdf.autoTable({
+      startY: 28,
+      head: [["Couleur", "Nom", "Type", "Limite ($)"]],
+      body,
+      theme: 'grid',
+      styles: { fontSize: 10, cellPadding: 3 },
+      headStyles: { fillColor: [28, 35, 58], textColor: 255, halign: 'left' },
+      bodyStyles: { fillColor: [250,250,250], textColor: [20,24,40] },
+      alternateRowStyles: { fillColor: [240,242,246] },
+      columnStyles: {
+        0: { cellWidth: 20, halign: 'center' },
+        1: { cellWidth: 80 },
+        2: { cellWidth: 30 },
+        3: { cellWidth: 35, halign: 'right' }
+      },
+      didParseCell: (data) => {
+        if (data.section === 'body' && data.column.index === 0) {
+          data.cell.text = [''];
+        }
+      },
+      didDrawCell: (data) => {
+        // Dessine un rond coloré pour la colonne Couleur
+        if (data.section === 'body' && data.column.index === 0) {
+          const rowIdx = data.row.index;
+          const colorHex = (rowsSorted[rowIdx] && rowsSorted[rowIdx].couleur) || '#7c3aed';
+          const r = 3.2; // rayon
+          const x = data.cell.x + data.cell.width / 2;
+          const y = data.cell.y + data.cell.height / 2;
+          const rgb = hexToRgb(colorHex);
+          if(rgb){
+            pdf.setFillColor(rgb.r, rgb.g, rgb.b);
+            pdf.circle(x, y, r, 'F');
+          }
+        }
+      }
+    });
+
+    pdf.save('categories.pdf');
+  }catch(e){
+    console.error('Export PDF error:', e);
+    alert('Erreur lors de l\'export PDF');
+  }
+}
+
+function hexToRgb(hex){
+  const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return m ? { r: parseInt(m[1], 16), g: parseInt(m[2], 16), b: parseInt(m[3], 16) } : null;
+}
+
+document.getElementById('exportPdfBtn').addEventListener('click', exportCategoriesPDF);
+</script>
+</body>
+</html>

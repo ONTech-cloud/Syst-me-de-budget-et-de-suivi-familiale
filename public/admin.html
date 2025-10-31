@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin — Budget Familial</title>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+  :root {
+    --bg: radial-gradient(circle at top left, #0b0f1d, #020617);
+    --accent: linear-gradient(90deg, #7c3aed, #06b6d4);
+    --muted: #94a3b8;
+    --border: rgba(255,255,255,0.08);
+    --card: rgba(255,255,255,0.05);
+    --radius: 16px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    padding:0;
+    font-family:'Manrope',sans-serif;
+    background:var(--bg);
+    color:#e2e8f0;
+    height:auto;
+    min-height:100vh;
+  }
+
+  body{
+    display:grid;
+    grid-template-columns:250px 1fr;
+  }
+
+  /* === SIDEBAR === */
+  .sidebar{
+    background:rgba(17,24,39,0.6);
+    backdrop-filter:blur(12px);
+    border-right:1px solid var(--border);
+    display:flex;
+    flex-direction:column;
+    height:100vh;
+    position:sticky;
+    top:0;
+  }
+
+  .brand{
+    text-align:center;
+    font-weight:800;
+    font-size:22px;
+    background:var(--accent);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+    margin:20px 0;
+  }
+
+  .nav{
+    flex:1;
+  }
+
+  .nav a{
+    display:block;
+    padding:14px 24px;
+    color:var(--muted);
+    text-decoration:none;
+    transition:all .25s ease;
+  }
+  .nav a:hover,.nav a.active{
+    color:#fff;
+    background:rgba(255,255,255,0.07);
+    border-left:3px solid #7c3aed;
+  }
+
+  .logout{
+    padding:18px 24px;
+    color:#ef4444;
+    cursor:pointer;
+    transition:background .2s;
+  }
+  .logout:hover{background:rgba(239,68,68,0.12);}
+
+  /* === MAIN === */
+  .main{
+    padding:32px;
+    display:flex;
+    flex-direction:column;
+    gap:28px;
+    min-height:100vh;
+    background:linear-gradient(180deg,rgba(255,255,255,0.01),rgba(255,255,255,0.02));
+  }
+
+  .header{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+
+  .header h2{
+    margin:0;
+    font-weight:700;
+    background:var(--accent);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+
+  .cards{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+    gap:16px;
+  }
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:18px;
+  }
+
+  .card h3{margin:0 0 6px;font-size:15px;color:var(--muted);}
+  .card .value{font-size:22px;font-weight:700;}
+
+  canvas{
+    background:var(--card);
+    border-radius:var(--radius);
+    padding:8px;
+    width:100%;
+    max-height:280px;
+  }
+
+  h3.sectionTitle {
+    margin:12px 0 8px;
+    color:#cbd5e1;
+    font-size:18px;
+    font-weight:600;
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    overflow:hidden;
+  }
+  th,td{
+    padding:12px 14px;
+    text-align:left;
+  }
+  th{
+    background:rgba(255,255,255,0.05);
+    color:#cbd5e1;
+    font-size:14px;
+  }
+  tr:nth-child(even){background:rgba(255,255,255,0.03);}
+  tr:hover{background:rgba(255,255,255,0.08);}
+
+  .suggestions{
+    margin-top:auto;
+  }
+  .suggestion{
+    background:rgba(255,255,255,0.05);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px 18px;
+    margin-bottom:10px;
+  }
+
+  .muted{color:var(--muted);}
+</style>
+
+</head>
+<body>
+  <div class="sidebar">
+    <div class="brand">Admin BF</div>
+    <div class="nav">
+      <a href="#" class="active" id="navDashboard">Tableau de bord</a>
+      <a href="transactions.html">Transactions</a>
+      <a href="users.html">Utilisateurs</a>
+      <a href="categories.html">Catégories</a>
+      <a href="report.html">Rapports</a>
+      <a href="ai.html">IA & Conseils</a>
+    </div>
+    <div class="logout" id="logoutBtn">Se déconnecter</div>
+  </div>
+
+  <div class="main">
+    <div class="header">
+      <h2>Tableau de bord</h2>
+      <div id="userInfo" class="muted">Chargement...</div>
+    </div>
+
+    <div class="cards">
+      <div class="card"><h3>Total du mois</h3><div class="value" id="totalDepenses">$0</div></div>
+      <div class="card"><h3>Transactions</h3><div class="value" id="nbTransac">0</div></div>
+      <div class="card"><h3>Catégorie principale</h3><div class="value" id="catTop">—</div></div>
+      <div class="card"><h3>Solde Restant</h3><div class="value" id="solde">$0</div></div>
+    </div>
+
+    <canvas id="chartDepenses" height="120"></canvas>
+
+    <h3 style="margin-bottom:10px;">📊 Transactions récentes</h3>
+    <table id="tableTransac">
+      <thead><tr><th>Date</th><th>Catégorie</th><th>Montant</th><th>Utilisateur</th></tr></thead>
+      <tbody></tbody>
+    </table>
+
+    <div class="suggestions">
+      <h3>💡 Suggestions IA</h3>
+      <div id="suggestionsList"></div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+    import { getAuth, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-auth.js";
+    import { getFirestore, collection, getDocs } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCmPGAHWI8ryKaHBiQJsFBP5wioriMmMOI",
+      authDomain: "budget-eef49.firebaseapp.com",
+      projectId: "budget-eef49",
+      storageBucket: "budget-eef49.firebasestorage.app",
+      messagingSenderId: "900677643847",
+      appId: "1:900677643847:web:06caf67097a65fa9428b62"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+
+    const userInfo = document.getElementById("userInfo");
+    const totalDepenses = document.getElementById("totalDepenses");
+    const nbTransac = document.getElementById("nbTransac");
+    const catTop = document.getElementById("catTop");
+    const solde = document.getElementById("solde");
+    const tbody = document.querySelector("#tableTransac tbody");
+    const suggestionsList = document.getElementById("suggestionsList");
+  let adminChartVar = null;
+
+    onAuthStateChanged(auth, async (user)=>{
+      if(!user){
+        window.location.href = "login.html";
+        return;
+      }
+      userInfo.textContent = user.email;
+      await chargerDonnees();
+    });
+
+    document.getElementById("logoutBtn").onclick = async ()=>{
+      await signOut(auth);
+      window.location.href = "login.html";
+    };
+
+    async function chargerDonnees(){
+      const snap = await getDocs(collection(db, "transactions"));
+      let total=0, count=0, perCat={}, rows=[];
+
+      snap.forEach(doc=>{
+        const d = doc.data();
+        total += d.montant || 0;
+        count++;
+        perCat[d.categorie] = (perCat[d.categorie]||0) + d.montant;
+        rows.push(d);
+      });
+
+      totalDepenses.textContent = "$" + total.toFixed(2);
+      nbTransac.textContent = count;
+      const topCat = Object.entries(perCat).sort((a,b)=>b[1]-a[1])[0];
+      catTop.textContent = topCat ? topCat[0] : "—";
+      solde.textContent = "$" + (2000-total).toFixed(2);
+
+      remplirTable(rows);
+      genererGraphique(perCat);
+      genererSuggestions(total, perCat);
+    }
+
+    function remplirTable(rows){
+      tbody.innerHTML="";
+      rows.sort((a,b)=>b.date - a.date);
+      rows.slice(0,10).forEach(r=>{
+        const tr=document.createElement("tr");
+        tr.innerHTML=`<td>${r.date || "—"}</td><td>${r.categorie||"—"}</td><td>$${r.montant||0}</td><td>${r.utilisateur||"—"}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function genererGraphique(perCat){
+      const ctx = document.getElementById("chartDepenses").getContext('2d');
+      const labels = Object.keys(perCat);
+      const dataValues = Object.values(perCat);
+
+      // destroy previous instance if present
+      if(adminChartVar){
+        try{ adminChartVar.destroy(); }catch(e){}
+        adminChartVar = null;
+      }
+
+      adminChartVar = new Chart(ctx,{
+        type: 'bar',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: 'Montant ($)',
+            data: dataValues,
+            backgroundColor: labels.map((_,i)=>["#7c3aed","#06b6d4","#10b981","#f59e0b","#ef4444","#8b5cf6"][i % 6]),
+            borderRadius: 12,
+            borderSkipped: false,
+            maxBarThickness: 40
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#cbd5e1' }, grid: { display: false } },
+            y: { ticks: { color: '#cbd5e1' }, grid: { color: 'rgba(255,255,255,0.03)' }, beginAtZero: true }
+          }
+        }
+      });
+    }
+
+    function genererSuggestions(total, perCat){
+      suggestionsList.innerHTML="";
+      const maxCat = Object.entries(perCat).sort((a,b)=>b[1]-a[1])[0];
+      if(total>1500) ajouterSuggestion("⚠️ Les dépenses dépassent 75 % du budget mensuel !");
+      if(maxCat) ajouterSuggestion(`💸 La catégorie dominante est <b>${maxCat[0]}</b> (${maxCat[1]} $).`);
+      if(Object.keys(perCat).length>6) ajouterSuggestion("📊 Trop de catégories : envisagez d’en regrouper certaines.");
+      if(total<800) ajouterSuggestion("✅ Excellent ! Vos dépenses restent très raisonnables.");
+    }
+
+    function ajouterSuggestion(txt){
+      const div=document.createElement("div");
+      div.className="suggestion";
+      div.innerHTML=txt;
+      suggestionsList.appendChild(div);
+    }
+  </script>
+</body>
+</html>

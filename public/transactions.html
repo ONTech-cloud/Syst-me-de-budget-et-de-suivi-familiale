@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Transactions — Budget Familial</title>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg: radial-gradient(circle at top left, #0b0f1d, #020617);
+    --accent: linear-gradient(90deg,#7c3aed,#06b6d4);
+    --muted: #94a3b8;
+    --border: rgba(255,255,255,0.08);
+    --card: rgba(255,255,255,0.05);
+    --radius: 16px;
+  }
+
+  *{box-sizing:border-box;}
+  html,body{
+    margin:0;
+    font-family:'Manrope',sans-serif;
+    background:var(--bg);
+    color:#e2e8f0;
+    min-height:100vh;
+  }
+
+  header{
+    background:rgba(255,255,255,0.04);
+    backdrop-filter:blur(10px);
+    border-bottom:1px solid var(--border);
+    padding:16px 24px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+  }
+  header h1{
+    margin:0;
+    font-size:20px;
+    font-weight:700;
+    background:var(--accent);
+    -webkit-background-clip:text;
+    -webkit-text-fill-color:transparent;
+  }
+
+  section{padding:24px 32px;}
+
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:20px;
+    margin-bottom:20px;
+    box-shadow:0 8px 25px rgba(0,0,0,0.3);
+  }
+
+  table{
+    width:100%;
+    border-collapse:collapse;
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    overflow:hidden;
+  }
+  th,td{
+    padding:12px 14px;
+    text-align:left;
+    font-size:14px;
+  }
+  th{
+    background:rgba(255,255,255,0.05);
+    color:#cbd5e1;
+  }
+  tr:nth-child(even){background:rgba(255,255,255,0.03);}
+  tr:hover{background:rgba(255,255,255,0.08);}
+
+  button{
+    background:var(--accent);
+    border:none;
+    color:#0f172a;
+    padding:10px 16px;
+    border-radius:12px;
+    font-weight:600;
+    cursor:pointer;
+    transition:opacity .2s;
+  }
+  button:hover{opacity:.9;}
+
+  .action-btn{
+    background:rgba(255,255,255,0.07);
+    color:#cbd5e1;
+    border:1px solid var(--border);
+    padding:6px 10px;
+    border-radius:8px;
+    margin:0 4px;
+    cursor:pointer;
+  }
+  .action-btn:hover{background:rgba(255,255,255,0.15);}
+
+  input,select{
+    background:rgba(255,255,255,0.06);
+    border:1px solid var(--border);
+    color:#f1f5f9;
+    padding:8px 12px;
+    border-radius:10px;
+    width:100%;
+    font-size:14px;
+    margin-bottom:10px;
+  }
+  /* Assure un menu déroulant lisible en thème sombre */
+  select{background-color:rgba(2,6,23,0.95);color:#e2e8f0;}
+  select option{background-color:#0b0f1d;color:#e2e8f0;}
+  select:focus{outline:2px solid var(--border);}
+
+  .form-inline{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+    gap:12px;
+  }
+
+  .empty{text-align:center;color:var(--muted);padding:24px;}
+
+  /* Modal */
+  .modal{
+    position:fixed;
+    top:0;left:0;width:100%;height:100%;
+    background:rgba(0,0,0,0.6);
+    display:none;
+    align-items:center;
+    justify-content:center;
+    z-index:100;
+  }
+  .modal.active{display:flex;}
+  .modal-content{
+    background:rgba(20,24,40,0.8);
+    backdrop-filter:blur(10px);
+    border:1px solid var(--border);
+    border-radius:16px;
+    padding:24px;
+    width:90%;
+    max-width:420px;
+  }
+  .modal-content h3{margin-top:0;color:#fff;}
+  .modal-content input, .modal-content select{margin-bottom:12px;}
+  .modal-actions{
+    display:flex;
+    justify-content:flex-end;
+    gap:10px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Transactions</h1>
+  <span>Ajout, modification et gestion</span>
+</header>
+
+<section>
+  <div class="card">
+    <h2>Nouvelle transaction</h2>
+    <div class="form-inline">
+      <input id="date" type="date">
+      <input id="description" placeholder="Description">
+      <input id="montant" type="number" placeholder="Montant">
+      <select id="type">
+        <option value="depense">Dépense</option>
+        <option value="revenu">Revenu</option>
+      </select>
+      <select id="categorieSelect"><option value="">— Choisir une catégorie —</option></select>
+      <select id="utilisateurSelect"><option value="">— Choisir un utilisateur —</option></select>
+      <button id="addBtn">Ajouter</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Liste des transactions</h2>
+    <table id="tableTransac">
+      <thead>
+        <tr>
+          <th>Date</th><th>Description</th><th>Catégorie</th><th>Type</th><th>Montant ($)</th><th>Utilisateur</th><th>Actions</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+    <div id="emptyMsg" class="empty" style="display:none;">Aucune transaction trouvée.</div>
+  </div>
+</section>
+
+<!-- MODAL DE MODIFICATION -->
+<div class="modal" id="editModal">
+  <div class="modal-content">
+    <h3>Modifier la transaction</h3>
+    <input id="editDesc" placeholder="Description">
+    <select id="editCatSelect"><option value="">— Choisir une catégorie —</option></select>
+    <select id="editType">
+      <option value="depense">Dépense</option>
+      <option value="revenu">Revenu</option>
+    </select>
+    <input id="editMont" type="number" placeholder="Montant">
+    <select id="editUserSelect"><option value="">— Choisir un utilisateur —</option></select>
+    <div class="modal-actions">
+      <button id="cancelEdit">Annuler</button>
+      <button id="saveEdit">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-app.js";
+import { getFirestore, collection, getDocs, addDoc, updateDoc, deleteDoc, doc, getDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.14.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCmPGAHWI8ryKaHBiQJsFBP5wioriMmMOI",
+  authDomain: "budget-eef49.firebaseapp.com",
+  projectId: "budget-eef49",
+  storageBucket: "budget-eef49.firebasestorage.app",
+  messagingSenderId: "900677643847",
+  appId: "1:900677643847:web:06caf67097a65fa9428b62"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const tbody = document.querySelector("#tableTransac tbody");
+const emptyMsg = document.getElementById("emptyMsg");
+const addBtn = document.getElementById("addBtn");
+const categorieSelect = document.getElementById("categorieSelect");
+const editCatSelect = document.getElementById("editCatSelect");
+const utilisateurSelect = document.getElementById("utilisateurSelect");
+const editUserSelect = document.getElementById("editUserSelect");
+
+let editId = null;
+let categories = [];
+let utilisateurs = [];
+
+async function chargerCategories(){
+  try{
+    const snap = await getDocs(collection(db, "Categories"));
+    const noms = [];
+    snap.forEach(ds=>{ const d = ds.data(); if(d && d.nom) noms.push(String(d.nom)); });
+    noms.sort((a,b)=>a.localeCompare(b));
+    categories = noms;
+    remplirSelectsCategories();
+  }catch(e){
+    console.error("Erreur chargement catégories:", e);
+  }
+}
+
+function remplirSelectsCategories(){
+  const makeOptions = () => ['<option value="">— Choisir une catégorie —</option>'].concat(categories.map(n=>`<option value="${n}">${n}</option>`)).join('');
+  if(categorieSelect){ categorieSelect.innerHTML = makeOptions(); }
+  if(editCatSelect){ editCatSelect.innerHTML = makeOptions(); }
+}
+
+async function chargerUtilisateurs(){
+  try{
+    const snap = await getDocs(collection(db, "Utilisateurs"));
+    const liste = [];
+    snap.forEach(ds=>{
+      const d = ds.data();
+      if(!d) return;
+      const name = d.name || d.nom || "";
+      const email = d.email || "";
+      const label = name && email ? `${name} (${email})` : (name || email);
+      if(label) liste.push({label, value: name || email});
+    });
+    liste.sort((a,b)=>a.label.localeCompare(b.label));
+    utilisateurs = liste;
+    remplirSelectsUtilisateurs();
+  }catch(e){ console.error("Erreur chargement utilisateurs:", e); }
+}
+
+function remplirSelectsUtilisateurs(){
+  const makeOptions = () => ['<option value="">— Choisir un utilisateur —</option>']
+    .concat(utilisateurs.map(u=>`<option value="${u.value}">${u.label}</option>`)).join('');
+  if(utilisateurSelect){ utilisateurSelect.innerHTML = makeOptions(); }
+  if(editUserSelect){ editUserSelect.innerHTML = makeOptions(); }
+}
+
+function toDateObj(value){
+  if(!value) return null;
+  // Firestore Timestamp support
+  if(typeof value === "object" && typeof value.toDate === "function"){
+    return value.toDate();
+  }
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+// CHARGER
+async function chargerTransactions(){
+  const snap = await getDocs(collection(db,"transactions"));
+  const rows=[];
+  snap.forEach(docSnap=>rows.push({...docSnap.data(), id: docSnap.id}));
+  rows.sort((a,b)=>{
+    const da = toDateObj(a.date);
+    const dbb = toDateObj(b.date);
+    if(!da && !dbb) return 0;
+    if(!da) return 1;
+    if(!dbb) return -1;
+    return dbb.getTime() - da.getTime();
+  });
+  remplirTable(rows);
+}
+
+function remplirTable(rows){
+  tbody.innerHTML="";
+  if(rows.length===0){emptyMsg.style.display="block";return;}
+  emptyMsg.style.display="none";
+  rows.forEach(r=>{
+    const tr=document.createElement("tr");
+    tr.innerHTML=`
+      <td>${(toDateObj(r.date)||null)? toDateObj(r.date).toLocaleDateString():"—"}</td>
+      <td>${r.description||"—"}</td>
+      <td>${r.categorie||"—"}</td>
+      <td>${r.type||"—"}</td>
+      <td>${r.montant||0}</td>
+      <td>${r.utilisateur||"—"}</td>
+      <td>
+        <button type="button" class="action-btn" data-id="${r.id}" data-action="edit">✏️</button>
+        <button type="button" class="action-btn" data-id="${r.id}" data-action="delete">🗑️</button>
+      </td>`;
+    tbody.appendChild(tr);
+    // Attach explicit handlers to ensure clicks always fire
+    const editBtn = tr.querySelector('[data-action="edit"]');
+    const delBtn = tr.querySelector('[data-action="delete"]');
+    if(editBtn){
+      editBtn.addEventListener("click", async (ev)=>{
+        ev.preventDefault();
+        console.debug("Edit click", r.id);
+        await ouvrirEdition(r.id);
+      });
+    }
+    if(delBtn){
+      delBtn.addEventListener("click", async (ev)=>{
+        ev.preventDefault();
+        console.debug("Delete click", r.id);
+        await supprimerTransaction(r.id);
+      });
+    }
+  });
+}
+
+document.body.addEventListener("click", async e=>{
+  const btn = e.target.closest(".action-btn");
+  if(btn) e.preventDefault();
+  if(!btn) return;
+  const id = btn.dataset.id;
+  const action = btn.dataset.action;
+  console.debug("Delegated click", action, id);
+  if(action==="delete") await supprimerTransaction(id);
+  if(action==="edit") await ouvrirEdition(id);
+});
+
+async function ajouterTransaction(){
+  const date=document.getElementById("date").value || new Date().toISOString();
+  const description=document.getElementById("description").value.trim();
+  const montant=parseFloat(document.getElementById("montant").value);
+  const type=document.getElementById("type").value;
+  const categorie=(categorieSelect?.value||"").trim();
+  const utilisateur=(utilisateurSelect?.value||"").trim();
+  if(!montant||!description){alert("Remplis au moins la description et le montant.");return;}
+  if(!categorie){alert("Choisis une catégorie.");return;}
+  if(!utilisateur){alert("Choisis un utilisateur.");return;}
+  await addDoc(collection(db,"transactions"),{date,description,montant,type,categorie,utilisateur,createdAt:serverTimestamp()});
+  resetForm();
+  chargerTransactions();
+}
+
+async function supprimerTransaction(id){
+  if(!confirm("Supprimer cette transaction ?")) return;
+  try {
+    console.log("Tentative de suppression ID:", id);
+    await deleteDoc(doc(db, "transactions", id)); // change "transactions" si besoin
+    console.log("Suppression réussie pour", id);
+    chargerTransactions();
+  } catch(e){
+    console.error("Erreur suppression:", e);
+    alert("Erreur lors de la suppression : " + e.message);
+  }
+}
+
+
+// MODAL ÉDITION
+const modal=document.getElementById("editModal");
+const editDesc=document.getElementById("editDesc");
+const editCat=document.getElementById("editCat");
+const editType=document.getElementById("editType");
+const editMont=document.getElementById("editMont");
+const editUser=document.getElementById("editUser");
+document.getElementById("cancelEdit").onclick=()=>modal.classList.remove("active");
+document.getElementById("saveEdit").onclick=async ()=>{
+  if(!editId)return;
+  await updateDoc(doc(db,"transactions",editId),{
+    description:editDesc.value.trim(),
+    categorie:(editCatSelect?.value||"").trim(),
+    type:editType.value,
+    montant:parseFloat(editMont.value),
+    utilisateur:(editUserSelect?.value||"").trim()
+  });
+  modal.classList.remove("active");
+  chargerTransactions();
+};
+
+async function ouvrirEdition(id){
+  const snap=await getDoc(doc(db,"transactions",id));
+  if(!snap.exists())return alert("Transaction introuvable");
+  const d=snap.data();
+  editId=id;
+  editDesc.value=d.description||"";
+  if(categories.length===0) await chargerCategories();
+  if(editCatSelect){
+    remplirSelectsCategories();
+    editCatSelect.value = d.categorie || "";
+  }
+  editType.value=d.type||"depense";
+  editMont.value=d.montant||0;
+  if(utilisateurs.length===0) await chargerUtilisateurs();
+  if(editUserSelect){
+    remplirSelectsUtilisateurs();
+    editUserSelect.value = d.utilisateur || "";
+  }
+  modal.classList.add("active");
+}
+
+function resetForm(){
+  document.querySelectorAll("input").forEach(i=>i.value="");
+  document.getElementById("type").value="depense";
+}
+
+addBtn.addEventListener("click",ajouterTransaction);
+// Charger d'abord catégories et utilisateurs, puis les transactions
+Promise.all([chargerCategories(), chargerUtilisateurs()]).then(chargerTransactions);
+</script>
+</body>
+</html>
